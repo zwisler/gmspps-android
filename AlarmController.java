@@ -18,7 +18,7 @@ public class AlarmController {
     public AlarmController(Context c) { // constructor for my alarm controller class
         this.context = c;
         mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-        //This will be on Git Commend
+
 
         //remeber what the user's volume was set to before we change it.
         userVolume = mAudioManager.getStreamVolume(AudioManager.STREAM_ALARM);

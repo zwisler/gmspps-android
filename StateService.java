@@ -322,7 +322,8 @@ public class StateService extends Service implements
 
     private void setUpLocationClientIfNeeded() {
         try {
-            LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+            //todo Fix the Location Issue
+          //  LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
 
         } catch (Exception e) {
             Log.d("Error Dialog ", e.getLocalizedMessage());

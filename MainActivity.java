@@ -1211,7 +1211,7 @@ public class MainActivity extends AppCompatActivity implements
                 return Client.GetVersion();
 
             } catch (Exception e) {
-                DialogNotify("MainActivity - Failed to getAllProvider ....Async", e.getMessage());
+                DialogNotify("MainActivity - Failed to the Version ....Async", e.getMessage());
                 return e.toString();
             }
             // null;
