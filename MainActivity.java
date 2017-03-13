@@ -23,6 +23,7 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
+import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
@@ -113,6 +114,7 @@ public class MainActivity extends AppCompatActivity implements
 
     /* RequestCode for resolutions involving sign-in */
     private static final int RC_SIGN_IN = 0;
+    private static final int RC_GET_TOKEN = 9002;
 
     /* Keys for persisting instance variables in savedInstanceState */
     private static final String KEY_IS_RESOLVING = "is_resolving";
@@ -238,6 +240,72 @@ public class MainActivity extends AppCompatActivity implements
         }
        // UpdateState();
     }
+    private void getIdToken() {
+        // Show an account picker to let the user choose a Google account from the device.
+        // If the GoogleSignInOptions only asks for IDToken and/or profile and/or email then no
+        // consent screen will be shown here.
+        Intent signInIntent = Auth.GoogleSignInApi.getSignInIntent(mGoogleApiClient);
+        startActivityForResult(signInIntent, RC_GET_TOKEN);
+    }
+
+    private void refreshIdToken() {
+        OptionalPendingResult<GoogleSignInResult> opr =
+                Auth.GoogleSignInApi.silentSignIn(mGoogleApiClient);
+
+        if (opr.isDone()) {
+            // Users cached credentials are valid, GoogleSignInResult containing ID token
+            // is available immediately. This likely means the current ID token is already
+            // fresh and can be sent to your server.
+            GoogleSignInResult result = opr.get();
+            handleSignInResult(result);
+        } else {
+            // If the user has not previously signed in on this device or the sign-in has expired,
+            // this asynchronous branch will attempt to sign in the user silently and get a valid
+            // ID token. Cross-device single sign on will occur in this branch.
+            opr.setResultCallback(new ResultCallback<GoogleSignInResult>() {
+                @Override
+                public void onResult(@NonNull GoogleSignInResult result) {
+                    handleSignInResult(result);
+                }
+            });
+        }
+    }
+
+    private void handleSignInResult(GoogleSignInResult result) {
+        if (result.isSuccess()) {
+            String idToken = result.getSignInAccount().getIdToken();
+            //todo use the Token now
+            //mIdTokenTextView.setText(getString(R.string.id_token_fmt, idToken));
+            // Signed in successfully, show authenticated UI.
+            GoogleSignInAccount acct = result.getSignInAccount();
+            name =  acct.getDisplayName();
+            updateUI(true);
+        } else {
+            updateUI(false);
+        }
+    }
+
+    private void signOut() {
+        Auth.GoogleSignInApi.signOut(mGoogleApiClient).setResultCallback(
+                new ResultCallback<Status>() {
+                    @Override
+                    public void onResult(Status status) {
+                        Log.d(TAG, "signOut:onResult:" + status);
+                        updateUI(false);
+                    }
+                });
+    }
+
+    private void revokeAccess() {
+        Auth.GoogleSignInApi.revokeAccess(mGoogleApiClient).setResultCallback(
+                new ResultCallback<Status>() {
+                    @Override
+                    public void onResult(Status status) {
+                        Log.d(TAG, "revokeAccess:onResult:" + status);
+                        updateUI(false);
+                    }
+                });
+    }
 
 
 
@@ -358,23 +426,18 @@ public class MainActivity extends AppCompatActivity implements
         InfoStatus = (TextView) findViewById(R.id.statusInfo);
 
 
-// doch noch
-
-        // [START configure_signin]
-        // Request only the user's ID token, which can be used to identify the
-        // user securely to your backend. This will contain the user's basic
-        // profile (name, profile picture URL, etc) so you should not need to
-        // make an additional call to personalize your application.
-        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken(SERVER_CLIENT_ID)
-                .requestEmail()
-                .build();
-        // [END configure_signin]
-
-
+            // [START configure_signin]
+            // Request only the user's ID token, which can be used to identify the
+            // user securely to your backend. This will contain the user's basic
+            // profile (name, profile picture URL, etc) so you should not need to
+            // make an additional call to personalize your application.
+            GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestIdToken(getString(R.string.server_client_id))
+                    .requestEmail()
+                    .build();
+            // [END configure_signin]
 
         // [START create_google_api_client]
-        // Build GoogleApiClient with access to basic profile
         // Build GoogleAPIClient with the Google Sign-In API and the above options.
         mGoogleApiClient = new GoogleApiClient.Builder(this)
                 .addConnectionCallbacks(this)
@@ -399,8 +462,6 @@ public class MainActivity extends AppCompatActivity implements
             DialogNotify(getString(R.string.net_staus), getString(R.string.net_stausError));
 
             if (mGoogleApiClient.isConnected()) {
-                Plus.AccountApi.clearDefaultAccount(mGoogleApiClient);
-                Plus.AccountApi.revokeAccessAndDisconnect(mGoogleApiClient);
                 mGoogleApiClient.disconnect();
             }
             // [END sign_out_clicked]
@@ -410,6 +471,7 @@ public class MainActivity extends AppCompatActivity implements
         } catch (Exception e) {
             e.printStackTrace();
         }
+        getIdToken();
         RestoreState();
 
         UpdateState();
@@ -466,15 +528,7 @@ public class MainActivity extends AppCompatActivity implements
             }
         }.execute(null, null, null);
     }
-    public void  refreshToken() {
-        try {
-              new GetIdTokenTask().execute();
-        }
-        catch(Exception e){
-            System.out.println("Update UI Exception: " + e.getMessage());
-           // return "Fail";
-        }
-    }
+
     private void updateUI(boolean isSignedIn) {
         try {
             if (isSignedIn) {
@@ -484,16 +538,17 @@ public class MainActivity extends AppCompatActivity implements
                 //Plus.PeopleApi.loadVisible(mGoogleApiClient, null).setResultCallback(this);
                 findViewById(R.id.state_panel).setVisibility(View.VISIBLE);
 
-                if (Plus.PeopleApi.getCurrentPerson(mGoogleApiClient) != null) {
-                    Person currentPerson = Plus.PeopleApi.getCurrentPerson(mGoogleApiClient);
-                    name = currentPerson.getDisplayName();
-
-                    if (!RegisterClient_Ok) {
+                if (!RegisterClient_Ok) {
+                    mStatus.setText("Get Data from Server...");
+                    pb.setVisibility(View.VISIBLE);
+                    //new GetIdTokenTask().execute();
+                }
+                if (!RegisterClient_Ok) {
                         mStatus.setText("Get Data from Server...");
                         pb.setVisibility(View.VISIBLE);
-                        new GetIdTokenTask().execute();
+                        //new GetIdTokenTask().execute();
                     }
-                }
+
                 if (name != "Unknown") {
                     mStatus.setText(getString(R.string.signed_in_fmt, name));
                     // Set button visibility
@@ -531,6 +586,7 @@ public class MainActivity extends AppCompatActivity implements
         super.onStart();
         if (mGoogleApiClient != null) {
             mGoogleApiClient.connect();
+            getIdToken();
         }
     }
 
@@ -563,7 +619,9 @@ public class MainActivity extends AppCompatActivity implements
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+
         Log.d(TAG, "onActivityResult:" + requestCode + ":" + resultCode + ":" + data);
+
         if (requestCode == RC_SIGN_IN) {
             // If the error resolution was not successful we should not resolve further errors.
             if (resultCode != RESULT_OK) {
@@ -572,6 +630,21 @@ public class MainActivity extends AppCompatActivity implements
             mIsResolving = false;
             mGoogleApiClient.connect();
         }
+        if (requestCode == RC_GET_TOKEN) {
+            // [START get_id_token]
+            GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(data);
+            Log.d(TAG, "onActivityResult:GET_TOKEN:success:" + result.getStatus().isSuccess());
+
+            if (result.isSuccess()) {
+                String idToken = result.getSignInAccount().getIdToken();
+                // TODO(developer): send token to server and validate
+            }
+            // [END get_id_token]
+
+            handleSignInResult(result);
+        }
+
+
     }
     // [END on_activity_result]
 
@@ -599,34 +672,13 @@ public class MainActivity extends AppCompatActivity implements
         Log.w(TAG, "onConnectionSuspended:" + i);
     }
 
-    // [START on_connection_failed]
     @Override
-    public void onConnectionFailed(ConnectionResult connectionResult){
-            // Could not connect to Google Play Services.  The user needs to select an account,
-        // grant permissions or resolve an error in order to sign in. Refer to the javadoc for
-        // ConnectionResult to see possible error codes.
+    public void onConnectionFailed(ConnectionResult connectionResult) {
+        // An unresolvable error has occurred and Google APIs (including Sign-In) will not
+        // be available.
         Log.d(TAG, "onConnectionFailed:" + connectionResult);
-
-        if (!mIsResolving && mShouldResolve) {
-            if (connectionResult.hasResolution()) {
-                try {
-                    connectionResult.startResolutionForResult(this, RC_SIGN_IN);
-                    mIsResolving = true;
-                } catch (IntentSender.SendIntentException e) {
-                    Log.e(TAG, "Could not resolve ConnectionResult.", e);
-                    mIsResolving = false;
-                    mGoogleApiClient.connect();
-                }
-            } else {
-                // Could not resolve the connection result, show the user an
-                // error dialog.
-                showErrorDialog(connectionResult);
-            }
-        } else {
-            // Show the signed-out UI
-            updateUI(false);
-        }
     }
+
     private void  SendState() {
         String Header = Client.getAuthorizationHeader();
         if(Header != null)StateIntent.putExtra("gnspps_auth", Client.getAuthorizationHeader());
@@ -717,34 +769,7 @@ public class MainActivity extends AppCompatActivity implements
 
     }
 
-    private void showErrorDialog(ConnectionResult connectionResult) {
-        int errorCode = connectionResult.getErrorCode();
 
-        if (GooglePlayServicesUtil.isUserRecoverableError(errorCode)) {
-            // Show the default Google Play services error dialog which may still start an intent
-            // on our behalf if the user can resolve the issue.
-            GooglePlayServicesUtil.getErrorDialog(errorCode, this, RC_SIGN_IN,
-                    new DialogInterface.OnCancelListener() {
-                        @Override
-                        public void onCancel(DialogInterface dialog) {
-                            mShouldResolve = false;
-                            updateUI(false);
-                        }
-                    }).show();
-        } else {
-            // No default Google Play Services error, display a message to the user.
-            try {
-                String errorString = getString(R.string.play_services_error_fmt, errorCode);
-                Toast.makeText(this, errorString, Toast.LENGTH_SHORT).show();
-
-                mShouldResolve = false;
-                updateUI(false);
-
-        } catch (Exception e) {
-            Log.d("Error Dialog ", e.getLocalizedMessage());
-        }
-        }
-    }
 
     public void NotifyMission(final String message, final String uri, int id ) {
         Intent MissionIntent = new Intent(this, MissionActivity.class);
@@ -813,8 +838,7 @@ public class MainActivity extends AppCompatActivity implements
                 online = NetzStatus();
                 if(online) {
                     if (mGoogleApiClient.isConnected()) {
-                        Plus.AccountApi.clearDefaultAccount(mGoogleApiClient);
-                        Plus.AccountApi.revokeAccessAndDisconnect(mGoogleApiClient);
+
                         mGoogleApiClient.disconnect();
                     }
                     pb.setVisibility(View.VISIBLE);
@@ -822,6 +846,8 @@ public class MainActivity extends AppCompatActivity implements
                     // [START sign_in_clicked]
                     mShouldResolve = true;
                     mGoogleApiClient.connect();
+                    //Todo only for debug
+                    getIdToken();
                     // [END sign_in_clicked]
                 }else{
                     DialogNotify(getString(R.string.net_staus), getString(R.string.net_stausError));
@@ -833,8 +859,7 @@ public class MainActivity extends AppCompatActivity implements
                 // to pass the consent screen to sign in again.
                 // [START disconnect_clicked]
                 if (mGoogleApiClient.isConnected()) {
-                    Plus.AccountApi.clearDefaultAccount(mGoogleApiClient);
-                    Plus.AccountApi.revokeAccessAndDisconnect(mGoogleApiClient);
+
                     mGoogleApiClient.disconnect();
                 }
                 // [END disconnect_clicked]
@@ -922,13 +947,13 @@ public class MainActivity extends AppCompatActivity implements
                 break;
         }
     }
-    //
+    /*
     private class GetIdTokenTask extends AsyncTask<Void, Void, String> {
         @Override
         protected String doInBackground(Void... params) {
             if (mGoogleApiClient.isConnected()) {
-                String accountName = Plus.AccountApi.getAccountName(mGoogleApiClient);
-                Account account = new Account(accountName, GoogleAuthUtil.GOOGLE_ACCOUNT_TYPE);
+               // String accountName = Plus.AccountApi.getAccountName(mGoogleApiClient);
+               // Account account = new Account(accountName, GoogleAuthUtil.GOOGLE_ACCOUNT_TYPE);
                 //String scopes = "oauth2:https://www.googleapis.com/auth/userinfo.profile";   ****************OK'''''''''''''''' ->
                 // -> https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=ya29.jQJ1yvRe9UN2sw-0W7oTDvEyZcfCbidHaYOUpO0Hph-p-OIqQe6C8jUeiN5bg0_k6thZ
                // String scopes = "audience:server:client_id:414999757757.apps.googleusercontent.com";
@@ -971,6 +996,8 @@ public class MainActivity extends AppCompatActivity implements
             }
         }
     }
+
+    */
     private static String convertInputStreamToString(InputStream inputStream) throws IOException{
         BufferedReader bufferedReader = new BufferedReader( new InputStreamReader(inputStream));
         String line = "";
@@ -1159,6 +1186,8 @@ public class MainActivity extends AppCompatActivity implements
         }
         }
     };
+
+
 ///Providers
     private class GetProviderAsyncTask extends AsyncTask<String, Void, String> {
 
