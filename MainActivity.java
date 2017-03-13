@@ -263,6 +263,8 @@ public class MainActivity extends AppCompatActivity implements
         InfoVersion.setText("Version: " + version );
         verCode = pInfo.versionCode;
         SERVER_CLIENT_ID = "414999757757-meg30nbsf899quqhhubvarf2cjf3guk5.apps.googleusercontent.com"; // für Backend
+        try {
+
 
 /*
         if (BuildConfig.DEBUG) {
@@ -369,19 +371,11 @@ public class MainActivity extends AppCompatActivity implements
                 .build();
         // [END configure_signin]
 
-        // Build GoogleAPIClient with the Google Sign-In API and the above options.
-        mGoogleApiClient = new GoogleApiClient.Builder(this)
-                .enableAutoManage(this /* FragmentActivity */, this /* OnConnectionFailedListener */)
-                .addApi(Auth.GOOGLE_SIGN_IN_API, gso)
-                .build();
-        //test
-
-
-
 
 
         // [START create_google_api_client]
         // Build GoogleApiClient with access to basic profile
+        // Build GoogleAPIClient with the Google Sign-In API and the above options.
         mGoogleApiClient = new GoogleApiClient.Builder(this)
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
@@ -412,6 +406,9 @@ public class MainActivity extends AppCompatActivity implements
             // [END sign_out_clicked]
             updateUI(false);
             pb.setVisibility(View.GONE);
+        }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         RestoreState();
 
@@ -532,12 +529,22 @@ public class MainActivity extends AppCompatActivity implements
     @Override
     protected void onStart() {
         super.onStart();
-        mGoogleApiClient.connect();
+        if (mGoogleApiClient != null) {
+            mGoogleApiClient.connect();
+        }
     }
 
     @Override
     protected void onStop() {
+        if (mGoogleApiClient != null && mGoogleApiClient.isConnected()) {
+            mGoogleApiClient.disconnect();
+        }
         super.onStop();
+    }
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        mGoogleApiClient.stopAutoManage(this);
         mGoogleApiClient.disconnect();
     }
     // [END on_start_on_stop]
