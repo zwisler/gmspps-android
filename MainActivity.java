@@ -277,6 +277,14 @@ public class MainActivity extends AppCompatActivity implements
             //todo use the Token now
             //mIdTokenTextView.setText(getString(R.string.id_token_fmt, idToken));
             // Signed in successfully, show authenticated UI.
+            MainActivity.this.Client.setAuthorizationHeader(idToken);
+
+            AuthorizationHeader = MainActivity.this.Client.getAuthorizationHeader();
+            setAuth(AuthorizationHeader,  getApplicationContext());
+
+            mStatus.setText("Get Suscriptions");
+            pb.setVisibility(View.VISIBLE);
+            new GetSuscriptionAsyncTask().execute();
             GoogleSignInAccount acct = result.getSignInAccount();
             name =  acct.getDisplayName();
             updateUI(true);
