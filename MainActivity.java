@@ -79,6 +79,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
 
 
 /**
@@ -102,7 +104,7 @@ public class MainActivity extends AppCompatActivity implements
     public static final String BACKEND_ENDPOINT = "http://gmspps.azurewebsites.net";
 
     // private static final String SERVER_CLIENT_ID = "414999757757-t0i02p4g2cjlnfpu6bm1valmrj7csfec.apps.googleusercontent.com"; //debug
-    private  String SERVER_CLIENT_ID = "414999757757-meg30nbsf899quqhhubvarf2cjf3guk5.apps.googleusercontent.com"; // für Backend
+   // private  String SERVER_CLIENT_ID = "414999757757-meg30nbsf899quqhhubvarf2cjf3guk5.apps.googleusercontent.com"; // für Backend
 // is for Provider layout
     private ListView listView1;
     private ListView list;
@@ -338,7 +340,7 @@ public class MainActivity extends AppCompatActivity implements
         String version = pInfo.versionName;
         InfoVersion.setText("Version: " + version );
         verCode = pInfo.versionCode;
-        SERVER_CLIENT_ID = "414999757757-meg30nbsf899quqhhubvarf2cjf3guk5.apps.googleusercontent.com"; // für Backend
+        //SERVER_CLIENT_ID = "414999757757-meg30nbsf899quqhhubvarf2cjf3guk5.apps.googleusercontent.com"; // für Backend
         try {
 
 
@@ -390,23 +392,41 @@ public class MainActivity extends AppCompatActivity implements
 
             nhMessage= (String) savedInstanceState.getSerializable("message");
             nhUrl= (String) savedInstanceState.getSerializable("url");
+           // DialogNotify("DEBUG savedInstanceState != null ", nhUrl);
         }
         else {
             Bundle extras = getIntent().getExtras();
             if(extras == null) {
                 nhMessage= null;
                 nhUrl= defaultUrl;
+               // DialogNotify("DEBUG extras == null ", nhUrl);
             } else {
+
                 nhMessage= extras.getString("message");
+
                 nhUrl= extras.getString("url");
                 nhID =  extras.getInt("id");
-
-
-                Intent MissionIntent = new Intent(this, MissionActivity.class);
-                MissionIntent.putExtra("url", nhUrl);
-                MissionIntent.putExtra("message", nhMessage);
-                MissionIntent.putExtra("missionid", nhID);
-                startActivity(MissionIntent);
+                /*
+                StringBuilder str = new StringBuilder();
+                Set<String> keys = extras.keySet();
+                Iterator<String> it = keys.iterator();
+                while (it.hasNext()) {
+                    String key = it.next();
+                    str.append(key);
+                    str.append(":");
+                    str.append(extras.get(key));
+                    str.append("\n\r");
+                }
+                DialogNotify("DEBUG extras != null ",str.toString());
+                */
+                if(nhUrl != null) {
+                    // Only go to a Mission when Url is not Null
+                    Intent MissionIntent = new Intent(this, MissionActivity.class);
+                    MissionIntent.putExtra("url", nhUrl);
+                    MissionIntent.putExtra("message", nhMessage);
+                    MissionIntent.putExtra("missionid", nhID);
+                    startActivity(MissionIntent);
+                }
 
             }
 
