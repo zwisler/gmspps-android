@@ -128,6 +128,7 @@ public class StateService extends Service implements
         Client = new GMSPPSClient(this, "http://gmspps.azurewebsites.net");
         String AuthHeader = intent.getStringExtra("gnspps_auth");
         mystatus = intent.getIntExtra(STATUS, 1);
+            publishMsg("STATE_Service_StartCommmand reached");
 
 
         switch (mystatus) {

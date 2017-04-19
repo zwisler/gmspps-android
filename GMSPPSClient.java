@@ -235,12 +235,14 @@ public class GMSPPSClient {
 
         return registrationId;
     }
-    public String GetSuscribetProvider() throws ClientProtocolException, IOException {
+    public String GetSuscribetProvider(String handle) throws ClientProtocolException, IOException {
         String result = "";
+        String registrationId = retrieveRegistrationIdOrRequestNewOne(handle);
         // make GET request to the given URL
         //HttpResponse httpResponse = httpClient.execute(new HttpGet(Suscribe_Endpoint));
         InputStream inputStream = null;
-        HttpUriRequest request = new HttpGet(Suscribe_Endpoint);
+        //HttpUriRequest request = new HttpGet(Suscribe_Endpoint+"/"+ handle);
+        HttpUriRequest request = new HttpGet(Suscribe_Endpoint+"?handle="+handle);
         request.addHeader("Authorization", "GMSPPSg "+authorizationHeader);
         HttpResponse response = httpClient.execute(request);
         if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {

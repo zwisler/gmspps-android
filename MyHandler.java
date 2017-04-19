@@ -17,7 +17,11 @@ import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.v4.app.NotificationCompat;
 
+import com.google.android.gms.auth.api.Auth;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.common.api.GoogleApiClient;
 import com.microsoft.windowsazure.notifications.NotificationsHandler;
+
 
 
 
@@ -34,6 +38,7 @@ public class MyHandler extends NotificationsHandler {
 
     //static public MissionActivity missionActivity;
     static public MainActivity mainActivity;
+    public static final String NOTIFICATION = "com.citaurus.doit4you";
 
 
 
@@ -50,11 +55,13 @@ public class MyHandler extends NotificationsHandler {
             TypId = bundle.getInt("Typ", 0);
             sendNotification(nhMessage, uri, id);
             //mainActivity.refreshToken();
+            publishMsg("onReceive on MyHandle of a Push msg");
 
             Client = new GMSPPSClient(context, "http://gmspps.azurewebsites.net");
             SharedPreferences mPrefs = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
             //mPrefs = getSharedPreferences("userdetails", MODE_PRIVATE);
             AuthorizationHeader = mPrefs.getString("gnspps_auth", "default"); // Gespeichete Inhalte lesen
+
             Client.setAuthorizationHeader(AuthorizationHeader);
             sendAkk("1", id);
             mainActivity.NotifyMission(nhMessage, uri, Integer.parseInt(id));
@@ -66,6 +73,18 @@ public class MyHandler extends NotificationsHandler {
 
     }
 
+
+    private void publishMsg(String Msg) {
+        try {
+
+            Intent intent = new Intent(NOTIFICATION);
+            intent.putExtra("msg", Msg);
+            ctx.sendBroadcast(intent);
+        } catch (Exception e) {
+            e.printStackTrace();
+
+        }
+    }
     private void sendNotification(String msg, String missionUrl, String id) {
         mNotificationManager = (NotificationManager)
                 ctx.getSystemService(Context.NOTIFICATION_SERVICE);
@@ -73,8 +92,8 @@ public class MyHandler extends NotificationsHandler {
         AlarmController ac = new AlarmController(ctx);
         String uri = "android.resource://com.citaurus.gmspps/" +  "/" + R.raw.sound_file_1;
         // das funzt muss aber erst gestopt werden
-        ac.playSound(uri);
-        MediaPlayer mediaPlayer = MediaPlayer.create(ctx, R.raw.sound_file_1);
+        //ac.playSound(uri);
+        //MediaPlayer mediaPlayer = MediaPlayer.create(ctx, R.raw.sound_file_1);
 
 
 

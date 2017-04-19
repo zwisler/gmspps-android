@@ -24,6 +24,8 @@ import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
@@ -60,6 +62,7 @@ import com.google.android.gms.common.Scopes;
 import com.google.android.gms.common.api.Scope;
 import com.google.android.gms.gcm.GoogleCloudMessaging;
 import com.google.android.gms.location.LocationListener;
+import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.plus.Plus;
 import com.google.android.gms.plus.model.people.Person;
@@ -89,7 +92,8 @@ import java.util.Set;
 public class MainActivity extends AppCompatActivity implements
         View.OnClickListener,
         GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener {
+        GoogleApiClient.OnConnectionFailedListener ,
+        LocationListener{
 
     public static final String SENDER_ID = "414999757757";
     private GoogleCloudMessaging gcm;
@@ -126,7 +130,10 @@ public class MainActivity extends AppCompatActivity implements
     public static final String KEY_MISSION_NAME= "key_mission_NAME";
     public static final String KEY_MISSION_URL = "key_mission_url";
     private static final String KEY_SHOULD_RESOLVE = "should_resolve";
+    private static final String KEY_LAT = "key_lat";
+    private static final String KEY_LON = "key_lon";
 
+    public static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
 
     /* Client for accessing Google APIs */
     private GoogleApiClient mGoogleApiClient;
@@ -160,12 +167,17 @@ public class MainActivity extends AppCompatActivity implements
     private LocationManager locationMangaer=null;
     private LocationListener locationListener=null;
     private Location mLastLocation;
+
+    private LocationRequest mLocationRequest;
+
     public int userStatus;
 
 
 
     private String Lat = "";
     private String Lon = "";
+    private double latitude;
+    private double longitude;
     private Intent StateIntent;
     private SharedPreferences mPrefs;
 
@@ -180,18 +192,20 @@ public class MainActivity extends AppCompatActivity implements
         public void onReceive(Context context, Intent intent) {
             Bundle bundle = intent.getExtras();
             if (bundle != null) {
-               /* String string = bundle.getString("msg");
-                Toast.makeText(MainActivity.this,
-                            "Info: " + string,
-                            Toast.LENGTH_LONG).show(); */
                 double distanz = bundle.getDouble("dist", -1);
                 int st = bundle.getInt("mystatus", -1);
+                String msg = bundle.getString("msg", "NoMsg");
                 if(distanz != -1) {
                     mStatus.setText("Distanz zum Ziel: " + distanz );
                 }
                 if(st != -1) {
                     userStatus = st;
                     UpdateState();
+                }
+                if(msg != "NoMsg") {
+                    Toast.makeText(MainActivity.this,
+                            "Info: " + msg,
+                            Toast.LENGTH_LONG).show();
                 }
             }
         }
@@ -224,6 +238,8 @@ public class MainActivity extends AppCompatActivity implements
             ed.putInt(KEY_MISSION_ID, nhID);
             ed.putString(KEY_MISSION_URL, nhUrl);
             ed.putString(KEY_MISSION_NAME, nhName);
+            ed.putLong(KEY_LAT, Double.doubleToRawLongBits(latitude));
+            ed.putLong(KEY_LON, Double.doubleToRawLongBits(longitude));
             ed.putInt(KEY_MSTAT, nhStatus);//KEY_MISSION_NAME
         }
 
@@ -239,6 +255,8 @@ public class MainActivity extends AppCompatActivity implements
             nhUrl  = mPrefs.getString(KEY_MISSION_URL, "");
             nhName  = mPrefs.getString(KEY_MISSION_NAME, "Currend Mission");
             nhStatus = mPrefs.getInt(KEY_MSTAT, -1);
+            latitude = Double.longBitsToDouble(mPrefs.getLong(KEY_LAT, Double.doubleToLongBits(0)));
+            longitude = Double.longBitsToDouble(mPrefs.getLong(KEY_LON, Double.doubleToLongBits(0)));
         }
        // UpdateState();
     }
@@ -327,9 +345,17 @@ public class MainActivity extends AppCompatActivity implements
         online = ConnectionUtils.isConnected(this);
         NotificationsManager.handleNotifications(this, SENDER_ID, MyHandler.class);
         gcm = GoogleCloudMessaging.getInstance(this);
+        /*try {
+            String regid = gcm.register(SENDER_ID);
+            DialogNotify("Registered Successfully","RegId : " +regid);
+        } catch (Exception e) {
+            DialogNotify("Exception",e.getMessage());
+
+        } */
         hub = new NotificationHub(HubName, HubListenConnectionString, this);
         online = NetzStatus();
-
+        locationMangaer = (LocationManager) getSystemService(LOCATION_SERVICE);
+        checkLocationPermission();
         PackageInfo pInfo = null;
         try {
             pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
@@ -475,6 +501,14 @@ public class MainActivity extends AppCompatActivity implements
                 .addApi(Auth.GOOGLE_SIGN_IN_API, gso)
                 .build();
 
+
+
+            // Create the LocationRequest object
+            mLocationRequest = LocationRequest.create()
+                    .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
+                    .setInterval(3600 * 1000)        // 3 seconds, in milliseconds
+                    .setFastestInterval(60 * 1000); // 1/2 second, in milliseconds
+
         // [END create_google_api_client]
         if(!mGoogleApiClient.isConnected() && online) {
 
@@ -504,7 +538,31 @@ public class MainActivity extends AppCompatActivity implements
 
         UpdateState();
    }
+    private void showGPSDisabledAlertToUser()
+    {
+        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this);
+        alertDialogBuilder.setMessage("GPS is disabled in your device. Would you like to enable it?")
+                .setCancelable(false)
+                .setPositiveButton("Settings", new DialogInterface.OnClickListener()
+                {
+                    public void onClick(DialogInterface dialog, int id)
+                    {
+                        Intent callGPSSettingIntent = new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+                        startActivity(callGPSSettingIntent);
 
+
+                    }
+                });
+        alertDialogBuilder.setNegativeButton("Cancel", new DialogInterface.OnClickListener()
+        {
+            public void onClick(DialogInterface dialog, int id)
+            {
+                dialog.cancel();
+            }
+        });
+        AlertDialog alert = alertDialogBuilder.create();
+        alert.show();
+    }
     /*----Method to Check GPS is enable or disable ----- */
     private Boolean displayGpsStatus() {
         ContentResolver contentResolver = getBaseContext()
@@ -690,7 +748,103 @@ public class MainActivity extends AppCompatActivity implements
             UpdateState();
             updateUI(true);
         }
+        // Assume thisActivity is the current activity
+        int permissionCheck = ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION);
+        try {
+
+            mLocationRequest = new LocationRequest();
+            mLocationRequest.setInterval(1000);
+            mLocationRequest.setFastestInterval(1000);
+            mLocationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
+
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
+            {
+                LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+            }
+            Location location = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+            if (location == null) {
+               LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+            }
+            else {
+               // handleNewLocation(location);
+            }
+           // setUpLocationClientIfNeeded();
+        } catch (Exception e) {
+            e.printStackTrace();
+
+        }
     }
+
+
+    @Override
+    public void onLocationChanged(Location location) {
+        try {
+            mLastLocation = location;
+           // handleNewLocation(myLastLocation);
+        } catch (Exception e) {
+            e.printStackTrace();
+
+        }
+    }
+    @Override
+    @SuppressWarnings({"MissingPermission"})
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (requestCode == 123) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+                Location location = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+
+
+            }
+        }
+    }
+
+    public boolean checkLocationPermission()
+    {
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+        {
+            // Should we show an explanation?
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this, android.Manifest.permission.ACCESS_FINE_LOCATION))
+            {
+                // Show an expanation to the user *asynchronously* -- don't block
+                // this thread waiting for the user's response! After the user
+                // sees the explanation, try again to request the permission.
+                //Prompt the user once explanation has been shown
+                ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
+                        MY_PERMISSIONS_REQUEST_LOCATION);
+            }
+            else
+            {
+                // No explanation needed, we can request the permission.
+                ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
+                        MY_PERMISSIONS_REQUEST_LOCATION);
+            }
+            return false;
+        }
+        else
+        {
+            if (!locationMangaer.isProviderEnabled(LocationManager.GPS_PROVIDER))
+            {
+                showGPSDisabledAlertToUser();
+            }
+            return true;
+        }
+    }
+
+    private void checkPermissions() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED)
+            getLocation();  //Method called if I have permission
+    }
+
+    @SuppressWarnings({"MissingPermission"})
+    private void getLocation() {
+        //Android studio shows warning at this line.
+        Location location = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+    }
+
+
+
 
     @Override
     public void onConnectionSuspended ( int i){
@@ -726,10 +880,12 @@ public class MainActivity extends AppCompatActivity implements
         View Bg_Status = findViewById(R.id.status_bar);
         Button mButton=(Button)findViewById(R.id.gotomision);
         mButton.setText(nhName);
+        checkPermissions();
 
         switch (userStatus) {
             case 1:
-                if (displayGpsStatus()) {
+
+
                     Bg_Status.setBackgroundColor(getResources().getColor((R.color.C1_blue)));
                     InfoStatus.setText(R.string.st1_button);
                     findViewById(R.id.State_4_button).setVisibility(View.GONE);
@@ -738,12 +894,10 @@ public class MainActivity extends AppCompatActivity implements
                     findViewById(R.id.gotomision).setVisibility(View.GONE);
                     findViewById(R.id.State_2_button).setVisibility(View.VISIBLE);
                     findViewById(R.id.State_6_button).setVisibility(View.VISIBLE);
-                } else {
-                    DialogNotify(getString(R.string.gps_staus), getString(R.string.gps_stausError));
-                }
+
                 break;
             case 2:
-                if (displayGpsStatus()) {
+
                 Bg_Status.setBackgroundColor(getResources().getColor((R.color.C1_graygreen)));
                 InfoStatus.setText(R.string.st2_button);
                 findViewById(R.id.State_4_button).setVisibility(View.GONE);
@@ -752,13 +906,11 @@ public class MainActivity extends AppCompatActivity implements
                 findViewById(R.id.State_1_button).setVisibility(View.VISIBLE);
                 findViewById(R.id.State_2_button).setVisibility(View.GONE);
                 findViewById(R.id.State_6_button).setVisibility(View.VISIBLE);
-                } else {
-                    DialogNotify(getString(R.string.gps_staus), getString(R.string.gps_stausError));
-                }
+
                 break;
 
             case 3:
-                if (displayGpsStatus()) {
+
                 InfoStatus.setText(R.string.st3_button);
                 Bg_Status.setBackgroundColor(getResources().getColor((R.color.C1_red)));
                 findViewById(R.id.State_4_button).setVisibility(View.GONE);
@@ -767,9 +919,7 @@ public class MainActivity extends AppCompatActivity implements
                 findViewById(R.id.State_2_button).setVisibility(View.GONE);
                 findViewById(R.id.gotomision).setVisibility(View.VISIBLE);
                 findViewById(R.id.State_6_button).setVisibility(View.GONE);
-                } else {
-                    DialogNotify(getString(R.string.gps_staus), getString(R.string.gps_stausError));
-                }
+
                 break;
             case 4:
                 InfoStatus.setText(R.string.st4_button);
@@ -1155,8 +1305,9 @@ public class MainActivity extends AppCompatActivity implements
         @Override
         protected String doInBackground(String... params){
             try {
+                String regid = gcm.register(MainActivity.SENDER_ID);
 
-                return Client.GetSuscribetProvider();
+                return Client.GetSuscribetProvider(regid);
 
 
 
